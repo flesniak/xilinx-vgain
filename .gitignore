@@ -1,0 +1,6 @@
+*.so
+*.o
+obj
+*.exe
+*.elf
+*.pse
