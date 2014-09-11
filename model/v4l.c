@@ -40,9 +40,9 @@ int v4lCheckCapabilities(v4lT* s) {
     s->param.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     s->param.parm.capture.capturemode = V4L2_MODE_HIGHQUALITY;
     if( v4l2_ioctl(s->cam, VIDIOC_S_PARM, &s->param) ) {
-      perror("Setting high quality mode failed");
-      v4lClose(s);
-      return 1;
+      perror("Setting high quality mode failed, continueing anyway");
+      /*v4lClose(s);
+      return 1;*/
     }
   }
   return 0;

@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
   for( int i = 0; i < v4l->fmtsCount; i++ )
     printf("fmt: index %d type %d flags 0x%08x desc %s pixfmt %c%c%c%c\n", v4l->fmts[i].index, v4l->fmts[i].type, v4l->fmts[i].flags, v4l->fmts[i].description, (char)v4l->fmts[i].pixelformat, (char)(v4l->fmts[i].pixelformat>>8), (char)(v4l->fmts[i].pixelformat>>16), (char)(v4l->fmts[i].pixelformat>>24));
 
-  if( v4lSetFormat(v4l, 640, 480) )
+  if( v4lSetFormat(v4l, OUTPUT_WIDTH, OUTPUT_HEIGHT) ) //request best resolution
     exit(EXIT_FAILURE);
   printf("Format info: type %d width %d height %d fmt %c%c%c%c field 0x%x pitch %d imagesize %d colorspace 0x%x\n", v4l->fmt.type, v4l->fmt.fmt.pix.width, v4l->fmt.fmt.pix.height, (char)v4l->fmt.fmt.pix.pixelformat, (char)(v4l->fmt.fmt.pix.pixelformat>>8), (char)(v4l->fmt.fmt.pix.pixelformat>>16), (char)(v4l->fmt.fmt.pix.pixelformat>>24), v4l->fmt.fmt.pix.field, v4l->fmt.fmt.pix.bytesperline, v4l->fmt.fmt.pix.sizeimage, v4l->fmt.fmt.pix.colorspace);
 
@@ -85,6 +85,17 @@ int main(int argc, char** argv) {
   time_t newTime = startTime;
   unsigned int frames = 0;
   while( run ) {
+    while( SDL_PollEvent(&event) ) {
+      switch( event.type ) {
+        case SDL_QUIT:
+          printf("Quit.\n");
+          run = false;
+          break;
+        /*default:
+          printf("Unhandled SDL_Event\n");*/
+      }
+    }
+
     v4lBufT* buf = v4lGetImage(v4l);
     if( !buf )
       break;
@@ -122,16 +133,6 @@ int main(int argc, char** argv) {
       printf("\rfps: %#6.2f", fps);
       fflush(stdout);
       currentTime = newTime;
-    }
-    while( SDL_PollEvent(&event) ) {
-      switch( event.type ) {
-        case SDL_QUIT:
-          printf("Quit.\n");
-          run = false;
-          break;
-        /*default:
-          printf("Unhandled SDL_Event\n");*/
-      }
     }
   }
 
