@@ -8,7 +8,7 @@
 typedef _Bool bool;
 static bool bigEndianGuest;
 
-Uns32 initDevice(char* device, bool scale) {
+Uns32 initDevice(Uns32 deviceStrP, bool scale) {
   bhmMessage("F", "VIN_PSE", "Failed to intercept : initdevice");
   return 0;
 }
@@ -67,17 +67,17 @@ PPM_CONSTRUCTOR_CB(constructor) {
   bigEndianGuest = bhmBoolAttribute("bigEndianGuest");
   bool scale = bhmBoolAttribute("scale");
 
-  char device[4] = {};
-  //device[3] = 0;
-  if( !bhmStringAttribute("device", device, 4) )
+  char device[16] = {};
+  if( !bhmStringAttribute("device", device, 16) )
     bhmMessage("W", "VIN_PSE", "Reading device attribute failed");
   if( device[0] == 0 ) { //default if no device attribute is set
     strcpy(device, VIN_DEFAULT_DEVICE);
-    bhmMessage("F", "VIN_PSE", "Using default device %s", VIN_DEFAULT_DEVICE);
-  }
+    bhmMessage("I", "VIN_PSE", "Using default device %s", device);
+  } else
+    bhmMessage("I", "VIN_PSE", "Using video device %s", device);
 
   bhmMessage("I", "VIN_PSE", "Initializing display initDisplay()");
-  Uns32 error = initDevice(device, scale);
+  Uns32 error = initDevice((Uns32)device, scale);
 
   if( !error )
     bhmMessage("I", "VIN_PSE", "Video input device initialized successfully");

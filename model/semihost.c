@@ -25,10 +25,10 @@ typedef struct vmiosObjectS {
   //memory information for mapping
   Uns32 vmemAddr;
   memDomainP bufferDomain;
-  unsigned char* framebuffer;
+  v4lBufT framebuffer;
 
   //input parameters
-  char* device;
+  char device[16];
   bool scale;
   
   //runtime variables
@@ -72,30 +72,11 @@ static void* streamerThread(void* objectV) {
       continue;
     }
     if( object->request ) {
-      //decode mjpeg image
-      gdImagePtr img = v4lDecodeMJPEG(buf->data, buf->length);
-      if( !img || !gdImageTrueColor(img) ) {
-        vmiMessage("W", "VIN_SH", "Could not read image, conversion error?");
+      if( v4lDecodeImage(object->v4l, &object->framebuffer, buf, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT) ) {
+        vmiMessage("W", "VIN_SH", "Could not decode captured image, dropping");
         continue;
       }
-
-      //scale image if activated
-      unsigned int w = gdImageSX(img);
-      unsigned int h = gdImageSY(img);
-      if( object->scale && (w != VIN_VMEM_WIDTH || h != VIN_VMEM_HEIGHT) ) {
-        gdImagePtr src = img;
-        img = gdImageCreateTrueColor(VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT);
-        gdImageCopyResampled(img, src, 0, 0, 0, 0, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT, w, h);
-        gdImageDestroy(src);
-        w = VIN_VMEM_WIDTH;
-        h = VIN_VMEM_HEIGHT;
-      }
-
-      //copy image to mapped framebuffer
-      for( int y = 0; y < h; y++ )
-        for( int x = 0; x < w; x++ )
-          *(((uint32_t*)object->framebuffer)+y*VIN_VMEM_SCANLINE_PIXELS+x) = gdImageGetPixel(img, x, y);
-      gdImageDestroy(img);
+    vmiMessage("I", "VIN_SH", "input dump:  0x%08x 0x%08x\n", *((unsigned int*)object->framebuffer.data), *(((unsigned int*)object->framebuffer.data)+1));
       object->request = 0;
     }
   }
@@ -113,18 +94,17 @@ memDomainP getSimulatedVmemDomain(vmiProcessorP processor, char* name) {
 }
 
 static VMIOS_INTERCEPT_FN(initDevice) {
-  Uns32 index = 0;
+  Uns32 index = 0, deviceStrP = 0;
+  GET_ARG(processor, object, index, deviceStrP);
   GET_ARG(processor, object, index, object->scale);
-  GET_ARG(processor, object, index, object->device);
-  object->v4l = calloc(1, sizeof(v4lT));
 
   //read device string
-  char* dev = calloc(32, 1);
+  object->device[15] = 0;
   memDomainP domain = vmirtGetProcessorDataDomain(processor);
-  vmirtReadNByteDomain(domain, (Uns32)object->device, dev, 32, 0, MEM_AA_FALSE);
-  object->device = dev;
+  vmirtReadNByteDomain(domain, deviceStrP, object->device, 16, 0, MEM_AA_FALSE);
+  vmiMessage("I", "VIN_SH", "Using video device %s\n", object->device);
 
-  vmiMessage("F", "VIN_SH", "using device %s\n", object->device); //try&error
+  object->v4l = calloc(1, sizeof(v4lT));
   if( v4lOpen(object->v4l, object->device) )
     exit(EXIT_FAILURE);
 
@@ -133,23 +113,31 @@ static VMIOS_INTERCEPT_FN(initDevice) {
     retArg(processor, object, 1); //return failure
     return;
   }
-  if( v4lSetFormat(object->v4l, 640, 480) ) {
-    vmiMessage("W", "VIN_SH", "Failed to set format - device can not stream MJPEG?");
+  if( v4lCheckFormats(object->v4l, V4L2_PIX_FMT_YUYV) ) {
+    vmiMessage("W", "VIN_SH", "Failed to check formats");
     retArg(processor, object, 1); //return failure
     return;
   }
-  vmiMessage("I", "VIN_SH", "Set format to %dx%d mjpeg\n", object->v4l->fmt.fmt.pix.width, object->v4l->fmt.fmt.pix.height);
+  if( v4lSetFormat(object->v4l, object->v4l->preferredPixFmtIndex, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT) ) {
+    vmiMessage("W", "VIN_SH", "Failed to set format");
+    retArg(processor, object, 1); //return failure
+    return;
+  }
+  vmiMessage("I", "VIN_SH", "Set format to %dx%d\n", object->v4l->fmt.fmt.pix.width, object->v4l->fmt.fmt.pix.height);
   if( v4lSetupMmap(object->v4l, 5) ) {
-    vmiMessage("W", "VIN_SH", "Device does not have STREAMING capability");
+    vmiMessage("W", "VIN_SH", "Failed to setup memory mapping");
     retArg(processor, object, 1); //return failure
     return;
   }
   vmiMessage("I", "VIN_SH", "Got %d mmap buffers\n", object->v4l->rqbuf.count);
 
-  object->framebuffer = calloc(1, VIN_VMEM_SIZE);
+  object->framebuffer.data = calloc(1, VIN_VMEM_SIZE);
+  object->framebuffer.length = VIN_VMEM_SIZE;
+  object->framebuffer.w = VIN_VMEM_WIDTH;
+  object->framebuffer.h = VIN_VMEM_HEIGHT;
   object->bufferDomain = vmirtNewDomain("buffer", 32);
   getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME); //just to check if VMEMBUS is connected
-  if( !vmirtMapNativeMemory(object->bufferDomain, 0, VIN_VMEM_SIZE-1, object->framebuffer) )
+  if( !vmirtMapNativeMemory(object->bufferDomain, 0, VIN_VMEM_SIZE-1, object->framebuffer.data) )
   	vmiMessage("F", "VIN_SH", "Failed to map native vmem to semihost memory domain");
 
   vmiMessage("I", "VIN_SH", "Launching streamer thread");
@@ -203,9 +191,9 @@ static VMIOS_CONSTRUCTOR_FN(constructor) {
   //initialize object
   object->vmemAddr = 0;
   object->bufferDomain = 0;
-  object->framebuffer = 0;
+  memset(&object->framebuffer, 0, sizeof(v4lBufT));
   object->scale = 0;
-  object->device = 0;
+  object->device[0] = 0;
   object->v4l = 0;
   object->streamer = 0;
   object->streamerState = 0;
@@ -218,10 +206,10 @@ static VMIOS_CONSTRUCTOR_FN(destructor) {
   pthread_join(object->streamer, 0);
   if( v4lClose(object->v4l) )
     vmiMessage("W", "VIN_SH", "Failed to close input device");
-  if( object->framebuffer )
-    free(object->framebuffer);
-  if( object->device )
-    free(object->device);
+  if( object->v4l )
+    free(object->v4l);
+  if( object->framebuffer.data )
+    free(object->framebuffer.data);
   vmiMessage("I", "VIN_SH", "Shutdown complete");
 }
 

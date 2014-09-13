@@ -4,7 +4,7 @@
 //                W R I T T E N   B Y   I M P E R A S   I G E N
 //
 //                             Version 20131018.0
-//                          Thu Sep  4 18:04:00 2014
+//                          Sat Sep 13 21:12:24 2014
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +78,7 @@ static void installRegisters(void) {
         readReg,
         writeReg,
         view_CFGBUS_AB0_IR,
-        (void*)0x0,
+        (void*)0x1,
         True
     );
 
