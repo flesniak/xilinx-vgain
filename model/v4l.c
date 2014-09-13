@@ -419,6 +419,11 @@ int v4lClose(v4lT* s) {
     s->frmSizes = 0;
     s->frmSizeCount = 0;
   }
+  if( s->frmIvals ) {
+    free(s->frmIvals);
+    s->frmIvals = 0;
+    s->frmIvalCount = 0;
+  }
   if( s->bufs ) {
     for( int i = 0; i < s->rqbuf.count; i++ )
       munmap(s->bufs[i].data, s->bufs[i].length);
