@@ -196,6 +196,7 @@ int main( int argc, char** argv ) {
       icmAddBoolAttr(pseAttrs, "bigEndianGuest", 1);
       icmAddBoolAttr(pseAttrs, "scale", 1);
       icmAddStringAttr(pseAttrs, "device", options.capture);
+      icmAddBoolAttr(pseAttrs, "byteswap", 1);
 
       icmPseP vin = icmNewPSE( "vin", "../../xilinx-vgain/pse/pse.pse", pseAttrs, 0, 0 );
       icmConnectPSEBus( vin, bus1, VIN_REGS_BUS_NAME, 0, VIN_DEFAULT_ADDRESS, VIN_DEFAULT_ADDRESS+VIN_CONTROL_REGS_SIZE-1);

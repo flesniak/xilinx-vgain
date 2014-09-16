@@ -1,3 +1,4 @@
+#include <byteswap.h>
 #include <gd.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -29,13 +30,14 @@ typedef struct vmiosObjectS {
 
   //input parameters
   char device[16];
-  bool scale;
+  uint32_t scale;
+  uint32_t byteswap;
   
   //runtime variables
   v4lT* v4l;
   pthread_t streamer;
   int streamerState;
-  bool request;
+  uint32_t request;
 } vmiosObject;
 
 static void getArg(vmiProcessorP processor, vmiosObjectP object, Uns32 *index, void* result, Uns32 argSize) {
@@ -52,6 +54,13 @@ inline static void retArg(vmiProcessorP processor, vmiosObjectP object, Uns64 re
   vmirtRegWrite(processor, object->resultLow, &result);
   result >>= 32;
   vmirtRegWrite(processor, object->resultHigh, &result);
+}
+
+void byteswapVmem(v4lBufT* framebuffer) {
+  uint32_t* d = (uint32_t*)framebuffer->data;
+  uint32_t* dEnd = d + framebuffer->length;
+  for( ; d < dEnd; d++ )
+    *d = bswap_32(*d);
 }
 
 static void* streamerThread(void* objectV) {
@@ -76,7 +85,8 @@ static void* streamerThread(void* objectV) {
         vmiMessage("W", "VIN_SH", "Could not decode captured image, dropping");
         continue;
       }
-    vmiMessage("I", "VIN_SH", "input dump:  0x%08x 0x%08x\n", *((unsigned int*)object->framebuffer.data), *(((unsigned int*)object->framebuffer.data)+1));
+      if( object->byteswap )
+        byteswapVmem(&object->framebuffer);
       object->request = 0;
     }
   }
@@ -97,6 +107,7 @@ static VMIOS_INTERCEPT_FN(initDevice) {
   Uns32 index = 0, deviceStrP = 0;
   GET_ARG(processor, object, index, deviceStrP);
   GET_ARG(processor, object, index, object->scale);
+  GET_ARG(processor, object, index, object->byteswap);
 
   //read device string
   object->device[15] = 0;

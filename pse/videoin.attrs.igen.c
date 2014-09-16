@@ -4,7 +4,7 @@
 //                W R I T T E N   B Y   I M P E R A S   I G E N
 //
 //                             Version 20131018.0
-//                          Sat Sep 13 21:12:24 2014
+//                          Tue Sep 16 12:19:46 2014
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +80,11 @@ static ppmParameter parameters[] = {
     {
         .name        = "device",
         .type        = ppm_PT_STRING,
+        .description = 0,
+    },
+    {
+        .name        = "byteswap",
+        .type        = ppm_PT_BOOL,
         .description = 0,
     },
     { 0 }
