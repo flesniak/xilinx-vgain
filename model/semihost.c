@@ -116,8 +116,11 @@ static VMIOS_INTERCEPT_FN(initDevice) {
   vmiMessage("I", "VIN_SH", "Using video device %s\n", object->device);
 
   object->v4l = calloc(1, sizeof(v4lT));
-  if( v4lOpen(object->v4l, object->device) )
-    exit(EXIT_FAILURE);
+  if( v4lOpen(object->v4l, object->device) ) {
+    vmiMessage("W", "VIN_SH", "Error while opening the video device");
+    retArg(processor, object, 1); //return failure
+    return;
+  }
 
   if( v4lCheckCapabilities(object->v4l) ) {
     vmiMessage("W", "VIN_SH", "Device does not have STREAMING capability");
