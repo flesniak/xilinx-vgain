@@ -4,7 +4,7 @@
 //                W R I T T E N   B Y   I M P E R A S   I G E N
 //
 //                             Version 20131018.0
-//                          Tue Sep 16 12:19:46 2014
+//                          Mon Sep 29 12:14:04 2014
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,17 +41,37 @@ static void setDiagLevel(Uns32 new) {
 
 //////////////////////////////// View callbacks ////////////////////////////////
 
-static PPM_VIEW_CB(view_CFGBUS_AB0_AR) {
-    *(Uns32*)data = CFGBUS_AB0_data.AR.value;
+static PPM_VIEW_CB(view_CFGBUS_AB0_CONTROL) {
+    *(Uns32*)data = CFGBUS_AB0_data.CONTROL.value;
 }
 
-static PPM_VIEW_CB(view_CFGBUS_AB0_IR) {
-    *(Uns32*)data = CFGBUS_AB0_data.IR.value;
+static PPM_VIEW_CB(view_CFGBUS_AB0_XSIZE) {
+    *(Uns32*)data = CFGBUS_AB0_data.XSIZE.value;
+}
+
+static PPM_VIEW_CB(view_CFGBUS_AB0_YSIZE) {
+    *(Uns32*)data = CFGBUS_AB0_data.YSIZE.value;
+}
+
+static PPM_VIEW_CB(view_CFGBUS_AB0_STRIDE) {
+    *(Uns32*)data = CFGBUS_AB0_data.STRIDE.value;
+}
+
+static PPM_VIEW_CB(view_CFGBUS_AB0_FRM0_BASEADDR) {
+    *(Uns32*)data = CFGBUS_AB0_data.FRM0_BASEADDR.value;
+}
+
+static PPM_VIEW_CB(view_CFGBUS_AB0_FRM_ADDROFFSET) {
+    *(Uns32*)data = CFGBUS_AB0_data.FRM_ADDROFFSET.value;
+}
+
+static PPM_VIEW_CB(view_CFGBUS_AB0_MAX_FRAME_INDEX) {
+    *(Uns32*)data = CFGBUS_AB0_data.MAX_FRAME_INDEX.value;
 }
 //////////////////////////////// Bus Slave Ports ///////////////////////////////
 
 static void installSlavePorts(void) {
-    handles.CFGBUS = ppmCreateSlaveBusPort("CFGBUS", 8);
+    handles.CFGBUS = ppmCreateSlaveBusPort("CFGBUS", 28);
 
 }
 
@@ -59,26 +79,81 @@ static void installSlavePorts(void) {
 
 static void installRegisters(void) {
 
-    ppmCreateRegister("AR",
+    ppmCreateRegister("CONTROL",
         0,
         handles.CFGBUS,
         0,
         4,
         readReg,
         writeReg,
-        view_CFGBUS_AB0_AR,
+        view_CFGBUS_AB0_CONTROL,
         (void*)0x0,
         True
     );
-    ppmCreateRegister("IR",
+    ppmCreateRegister("XSIZE",
         0,
         handles.CFGBUS,
         4,
         4,
         readReg,
         writeReg,
-        view_CFGBUS_AB0_IR,
+        view_CFGBUS_AB0_XSIZE,
         (void*)0x1,
+        True
+    );
+    ppmCreateRegister("YSIZE",
+        0,
+        handles.CFGBUS,
+        8,
+        4,
+        readReg,
+        writeReg,
+        view_CFGBUS_AB0_YSIZE,
+        (void*)0x2,
+        True
+    );
+    ppmCreateRegister("STRIDE",
+        0,
+        handles.CFGBUS,
+        12,
+        4,
+        readReg,
+        writeReg,
+        view_CFGBUS_AB0_STRIDE,
+        (void*)0x3,
+        True
+    );
+    ppmCreateRegister("FRM0_BASEADDR",
+        0,
+        handles.CFGBUS,
+        16,
+        4,
+        readReg,
+        writeReg,
+        view_CFGBUS_AB0_FRM0_BASEADDR,
+        (void*)0x4,
+        True
+    );
+    ppmCreateRegister("FRM_ADDROFFSET",
+        0,
+        handles.CFGBUS,
+        20,
+        4,
+        readReg,
+        writeReg,
+        view_CFGBUS_AB0_FRM_ADDROFFSET,
+        (void*)0x5,
+        True
+    );
+    ppmCreateRegister("MAX_FRAME_INDEX",
+        0,
+        handles.CFGBUS,
+        24,
+        4,
+        readReg,
+        writeReg,
+        view_CFGBUS_AB0_MAX_FRAME_INDEX,
+        (void*)0x6,
         True
     );
 

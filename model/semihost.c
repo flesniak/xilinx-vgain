@@ -25,8 +25,10 @@ typedef struct vmiosObjectS {
 
   //memory information for mapping
   Uns32 vmemAddr;
-  memDomainP bufferDomain;
-  v4lBufT framebuffer;
+  Uns32 framebufferCount;
+  Uns32 framebufferOffset;
+  memDomainP* bufferDomains;
+  v4lBufT* framebuffers;
 
   //input parameters
   char device[16];
@@ -138,14 +140,14 @@ static VMIOS_INTERCEPT_FN(initDevice) {
     return;
   }
   vmiMessage("I", "VIN_SH", "Set format to %dx%d\n", object->v4l->fmt.fmt.pix.width, object->v4l->fmt.fmt.pix.height);
-  if( v4lSetupMmap(object->v4l, 5) ) {
+  if( v4lSetupMmap(object->v4l, VIN_DEFAULT_MAX_FRAME_INDEX) ) {
     vmiMessage("W", "VIN_SH", "Failed to setup memory mapping");
     retArg(processor, object, 1); //return failure
     return;
   }
   vmiMessage("I", "VIN_SH", "Got %d mmap buffers\n", object->v4l->rqbuf.count);
 
-  object->framebuffer.data = calloc(1, VIN_VMEM_SIZE);
+  object->framebuffer.data = calloc(VIN_DEFAULT_MAX_FRAME_INDEX+1, VIN_VMEM_SIZE_FRAME);
   object->framebuffer.length = VIN_VMEM_SIZE;
   object->framebuffer.w = VIN_VMEM_WIDTH;
   object->framebuffer.h = VIN_VMEM_HEIGHT;
@@ -160,10 +162,26 @@ static VMIOS_INTERCEPT_FN(initDevice) {
   retArg(processor, object, 0); //return success
 }
 
-static VMIOS_INTERCEPT_FN(mapMemory) {
-  Uns32 newVmemAddress = 0, index = 0;
-  GET_ARG(processor, object, index, newVmemAddress);
-  vmiMessage("I", "VIN_SH", "Mapping external vmem (new addr 0x%08x, old addr 0x%08x)", newVmemAddress, object->vmemAddr);
+static VMIOS_INTERCEPT_FN(configureDevice) {
+  Uns32 index = 0;
+  GET_ARG(processor, object, index, object->vmemAddr);
+  GET_ARG(processor, object, index, object->framebufferOffset);
+  GET_ARG(processor, object, index, object->framebufferCount);
+  if( framebufferCount ) {
+  	vmiMessage("W", "VIN_SH", "Superfluous call to configureDevice suppressed, already configured");
+  	return;
+	}
+  vmiMessage("I", "VIN_SH", "Initializing %d buffers at addr 0x%08x offset 0x%08x)", ++object->framebufferCount, object->vmemAddr, object->framebufferOffset);
+
+  object->framebuffers = calloc(object->framebufferCount, sizeof(v4lBufT));
+  object->bufferDomains = calloc(object->framebufferCount, sizeof(memDomainP));
+
+  for( uint32_t i = 0; i++, i < object->framebufferCount ) {
+    getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME); //just to check if VMEMBUS is connected
+    if( !vmirtMapNativeMemory(object->bufferDomain, 0, VIN_VMEM_SIZE-1, object->framebuffer.data) )
+    	vmiMessage("F", "VIN_SH", "Failed to map native vmem to semihost memory domain");
+	}
+
   if( object->vmemAddr ) {
     vmiMessage("I", "VIN_SH", "Unaliasing previously mapped memory at 0x%08x", object->vmemAddr);
     memDomainP simDomain = getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME);
@@ -204,8 +222,10 @@ static VMIOS_CONSTRUCTOR_FN(constructor) {
 
   //initialize object
   object->vmemAddr = 0;
-  object->bufferDomain = 0;
-  memset(&object->framebuffer, 0, sizeof(v4lBufT));
+  object->framebufferCount = 0;
+  object->framebufferOffset = 0;
+  object->bufferDomains = 0;
+  object->framebuffers = 0;
   object->scale = 0;
   object->device[0] = 0;
   object->v4l = 0;
