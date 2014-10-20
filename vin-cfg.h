@@ -3,6 +3,7 @@
 
 #define VIN_DEFAULT_DEVICE              "/dev/video0"
 #define VIN_DEFAULT_MAX_FRAME_INDEX     9 //equals 10 max frames, setting MAXFRMINDEX to values >=10 will not work!
+#define VIN_DEFAULT_MAX_FRAMES          (VIN_DEFAULT_MAX_FRAME_INDEX+1)
 
 //PERIPHERAL PARAMETERS - you should not need to change anything below this point!
 #define VIN_DEFAULT_ADDRESS             0x90000000U

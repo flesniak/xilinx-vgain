@@ -27,8 +27,9 @@ typedef struct vmiosObjectS {
   Uns32 vmemAddr;
   Uns32 framebufferCount;
   Uns32 framebufferOffset;
-  memDomainP* bufferDomains;
-  v4lBufT* framebuffers;
+  Uns32 nextBuffer;
+  memDomainP guestDomain;
+  v4lBufT framebuffers[VIN_DEFAULT_MAX_FRAMES];
 
   //input parameters
   char device[16];
@@ -39,7 +40,7 @@ typedef struct vmiosObjectS {
   v4lT* v4l;
   pthread_t streamer;
   int streamerState;
-  uint32_t request;
+  uint32_t captureImages;
 } vmiosObject;
 
 static void getArg(vmiProcessorP processor, vmiosObjectP object, Uns32 *index, void* result, Uns32 argSize) {
@@ -82,14 +83,17 @@ static void* streamerThread(void* objectV) {
       vmiMessage("W", "VIN_SH", "Failed to get image");
       continue;
     }
-    if( object->request ) {
-      if( v4lDecodeImage(object->v4l, &object->framebuffer, buf, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT) ) {
+    if( object->captureImages ) {
+      if( v4lDecodeImage(object->v4l, &object->framebuffers[object->nextBuffer], buf, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT) ) {
         vmiMessage("W", "VIN_SH", "Could not decode captured image, dropping");
         continue;
       }
       if( object->byteswap )
-        byteswapVmem(&object->framebuffer);
-      object->request = 0;
+        byteswapVmem(&object->framebuffers[object->nextBuffer]);
+      if( object->nextBuffer >= object->framebufferCount-1 ) //if last buffer is captured, stop capturing (original behaviour of video_to_vfbc is unknown)
+        object->captureImages = 0;
+      else
+        object->nextBuffer++;
     }
   }
   object->streamerState = 0; //thread is stopped
@@ -140,21 +144,14 @@ static VMIOS_INTERCEPT_FN(initDevice) {
     return;
   }
   vmiMessage("I", "VIN_SH", "Set format to %dx%d\n", object->v4l->fmt.fmt.pix.width, object->v4l->fmt.fmt.pix.height);
-  if( v4lSetupMmap(object->v4l, VIN_DEFAULT_MAX_FRAME_INDEX) ) {
+  if( v4lSetupMmap(object->v4l, VIN_DEFAULT_MAX_FRAMES) ) {
     vmiMessage("W", "VIN_SH", "Failed to setup memory mapping");
     retArg(processor, object, 1); //return failure
     return;
   }
   vmiMessage("I", "VIN_SH", "Got %d mmap buffers\n", object->v4l->rqbuf.count);
 
-  object->framebuffer.data = calloc(VIN_DEFAULT_MAX_FRAME_INDEX+1, VIN_VMEM_SIZE_FRAME);
-  object->framebuffer.length = VIN_VMEM_SIZE;
-  object->framebuffer.w = VIN_VMEM_WIDTH;
-  object->framebuffer.h = VIN_VMEM_HEIGHT;
-  object->bufferDomain = vmirtNewDomain("buffer", 32);
-  getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME); //just to check if VMEMBUS is connected
-  if( !vmirtMapNativeMemory(object->bufferDomain, 0, VIN_VMEM_SIZE-1, object->framebuffer.data) )
-  	vmiMessage("F", "VIN_SH", "Failed to map native vmem to semihost memory domain");
+  object->guestDomain = getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME);
 
   vmiMessage("I", "VIN_SH", "Launching streamer thread");
   pthread_create(&object->streamer, 0, streamerThread, (void*)object);
@@ -167,40 +164,30 @@ static VMIOS_INTERCEPT_FN(configureDevice) {
   GET_ARG(processor, object, index, object->vmemAddr);
   GET_ARG(processor, object, index, object->framebufferOffset);
   GET_ARG(processor, object, index, object->framebufferCount);
-  if( framebufferCount ) {
+  if( object->framebufferCount ) {
   	vmiMessage("W", "VIN_SH", "Superfluous call to configureDevice suppressed, already configured");
   	return;
 	}
   vmiMessage("I", "VIN_SH", "Initializing %d buffers at addr 0x%08x offset 0x%08x)", ++object->framebufferCount, object->vmemAddr, object->framebufferOffset);
 
-  object->framebuffers = calloc(object->framebufferCount, sizeof(v4lBufT));
-  object->bufferDomains = calloc(object->framebufferCount, sizeof(memDomainP));
-
-  for( uint32_t i = 0; i++, i < object->framebufferCount ) {
-    getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME); //just to check if VMEMBUS is connected
-    if( !vmirtMapNativeMemory(object->bufferDomain, 0, VIN_VMEM_SIZE-1, object->framebuffer.data) )
+  unsigned int currentAddr = object->vmemAddr;
+  for( uint32_t i = 0; i < object->framebufferCount; i++ ) {
+    object->framebuffers[i].data = calloc(1, VIN_VMEM_SIZE_FRAME);
+    if( !vmirtMapNativeMemory(object->guestDomain,currentAddr, currentAddr+VIN_VMEM_SIZE-1, object->framebuffers[i].data) )
     	vmiMessage("F", "VIN_SH", "Failed to map native vmem to semihost memory domain");
+  	currentAddr += VIN_VMEM_SIZE + object->framebufferOffset;
 	}
-
-  if( object->vmemAddr ) {
-    vmiMessage("I", "VIN_SH", "Unaliasing previously mapped memory at 0x%08x", object->vmemAddr);
-    memDomainP simDomain = getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME);
-    vmirtUnaliasMemory(simDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1);
-    //vmirtMapMemory(simDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1, MEM_RAM);
-    //NOTE this unalias command does not work as expected. OVPsim seems to not yet have a way to dynamically unmap vmipse-mapped memory
-    //The memory will be unmapped completely and not re-mapped to the ordinary platform-initialized RAM
-    //Perhaps try to get originally mapped domain, save it and map it back later on here?
-  }
-  vmipseAliasMemory(object->bufferDomain, VIN_VMEM_BUS_NAME, newVmemAddress, newVmemAddress+VIN_VMEM_SIZE-1);
-  object->vmemAddr = newVmemAddress;
 }
 
-static VMIOS_INTERCEPT_FN(requestFrame) {
-  Uns32 request = 0, index = 0;
-  GET_ARG(processor, object, index, request);
-  if( request )
-    object->request = 1;
-  retArg(processor, object, object->request);
+static VMIOS_INTERCEPT_FN(enable) {
+  Uns32 index = 0;
+  GET_ARG(processor, object, index, object->captureImages);
+}
+
+//get the current state (frame index, last frame done, frame capture enabled)
+static VMIOS_INTERCEPT_FN(getState) {
+  unsigned int state = (object->nextBuffer << 16) | ((object->nextBuffer==object->framebufferCount) ? (1 << 15) : 0) | (object->captureImages ? (1 << 3) : 0) | 1;
+  retArg(processor, object, state);
 }
 
 static VMIOS_CONSTRUCTOR_FN(constructor) {
@@ -224,14 +211,21 @@ static VMIOS_CONSTRUCTOR_FN(constructor) {
   object->vmemAddr = 0;
   object->framebufferCount = 0;
   object->framebufferOffset = 0;
-  object->bufferDomains = 0;
-  object->framebuffers = 0;
+  object->guestDomain = 0;
+  object->nextBuffer = 0;
   object->scale = 0;
   object->device[0] = 0;
   object->v4l = 0;
   object->streamer = 0;
   object->streamerState = 0;
-  object->request = 0;
+  object->captureImages = 0;
+  
+  for( int i = 0; i < VIN_DEFAULT_MAX_FRAMES; i++ ) {
+    object->framebuffers[i].data = 0; //allocate dynamically later on...
+    object->framebuffers[i].length = VIN_VMEM_SIZE;
+    object->framebuffers[i].w = VIN_VMEM_WIDTH;
+    object->framebuffers[i].h = VIN_VMEM_HEIGHT;
+  }
 }
 
 static VMIOS_CONSTRUCTOR_FN(destructor) {
@@ -242,8 +236,9 @@ static VMIOS_CONSTRUCTOR_FN(destructor) {
     vmiMessage("W", "VIN_SH", "Failed to close input device");
   if( object->v4l )
     free(object->v4l);
-  if( object->framebuffer.data )
-    free(object->framebuffer.data);
+  for( int i = 0; i < VIN_DEFAULT_MAX_FRAMES; i++ )
+    if( object->framebuffers[i].data )
+      free(object->framebuffers[i].data);
   vmiMessage("I", "VIN_SH", "Shutdown complete");
 }
 
@@ -265,8 +260,9 @@ vmiosAttr modelAttrs = {
     // -------------------          -------- ------  -----------------
     .intercepts = {
         {"initDevice",         0,       True,   initDevice        },
-        {"mapMemory",          0,       True,   mapMemory         },
-        {"requestFrame",       0,       True,   requestFrame      },
+        {"configureDevice",    0,       True,   configureDevice   },
+        {"enable",             0,       True,   enable            },
+        {"getState",           0,       True,   getState          },
         {0}
     }
 };
