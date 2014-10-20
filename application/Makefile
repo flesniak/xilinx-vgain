@@ -14,7 +14,7 @@ endif
 
 IMPERAS_CC += -std=gnu99 -O3 -Wall
 
-ASRC = dumpvideo.c susan.c
+ASRC = dumpvideo.c susan.c remap-dump.c
 ASRCINC?=microblaze_io.c
 
 AINCOBJ=$(patsubst %.c,%.$(CROSS).o,$(ASRCINC))

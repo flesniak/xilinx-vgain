@@ -25,7 +25,7 @@ typedef struct vmiosObjectS {
 
   //memory information for mapping
   Uns32 vmemAddr;
-  memDomainP bufferDomain;
+  memDomainP guestDomain;
   v4lBufT framebuffer;
 
   //input parameters
@@ -149,10 +149,7 @@ static VMIOS_INTERCEPT_FN(initDevice) {
   object->framebuffer.length = VIN_VMEM_SIZE;
   object->framebuffer.w = VIN_VMEM_WIDTH;
   object->framebuffer.h = VIN_VMEM_HEIGHT;
-  object->bufferDomain = vmirtNewDomain("buffer", 32);
-  getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME); //just to check if VMEMBUS is connected
-  if( !vmirtMapNativeMemory(object->bufferDomain, 0, VIN_VMEM_SIZE-1, object->framebuffer.data) )
-  	vmiMessage("F", "VIN_SH", "Failed to map native vmem to semihost memory domain");
+  object->guestDomain = getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME); //just to check if VMEMBUS is connected
 
   vmiMessage("I", "VIN_SH", "Launching streamer thread");
   pthread_create(&object->streamer, 0, streamerThread, (void*)object);
@@ -165,15 +162,13 @@ static VMIOS_INTERCEPT_FN(mapMemory) {
   GET_ARG(processor, object, index, newVmemAddress);
   vmiMessage("I", "VIN_SH", "Mapping external vmem (new addr 0x%08x, old addr 0x%08x)", newVmemAddress, object->vmemAddr);
   if( object->vmemAddr ) {
-    vmiMessage("I", "VIN_SH", "Unaliasing previously mapped memory at 0x%08x", object->vmemAddr);
-    memDomainP simDomain = getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME);
-    vmirtUnaliasMemory(simDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1);
-    //vmirtMapMemory(simDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1, MEM_RAM);
-    //NOTE this unalias command does not work as expected. OVPsim seems to not yet have a way to dynamically unmap vmipse-mapped memory
-    //The memory will be unmapped completely and not re-mapped to the ordinary platform-initialized RAM
-    //Perhaps try to get originally mapped domain, save it and map it back later on here?
+    vmiMessage("I", "TFT_SH", "Unaliasing previously mapped memory at 0x%08x", object->vmemAddr);
+    vmirtUnaliasMemory(object->guestDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1);
+    vmirtMapMemory(object->guestDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1, MEM_RAM);
+    vmirtWriteNByteDomain(object->guestDomain, object->vmemAddr, object->framebuffer.data, VIN_VMEM_SIZE, 0, MEM_AA_FALSE);
+    vmirtReadNByteDomain(object->guestDomain, newVmemAddress, object->framebuffer.data, VIN_VMEM_SIZE, 0, MEM_AA_FALSE);
   }
-  vmipseAliasMemory(object->bufferDomain, VIN_VMEM_BUS_NAME, newVmemAddress, newVmemAddress+VIN_VMEM_SIZE-1);
+  vmirtMapNativeMemory(object->guestDomain, newVmemAddress, newVmemAddress+VIN_VMEM_SIZE-1, object->framebuffer.data);
   object->vmemAddr = newVmemAddress;
 }
 
@@ -204,7 +199,7 @@ static VMIOS_CONSTRUCTOR_FN(constructor) {
 
   //initialize object
   object->vmemAddr = 0;
-  object->bufferDomain = 0;
+  object->guestDomain = 0;
   memset(&object->framebuffer, 0, sizeof(v4lBufT));
   object->scale = 0;
   object->device[0] = 0;
