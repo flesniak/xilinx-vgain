@@ -44,8 +44,8 @@ iadddocumentation   -name Description -text "V4L2 to OVP video input peripheral"
 
   imodeladdnetport -name VINSYNCINT -type output
 
-  imodeladdbusslaveport -name VINMEMBUS -size 0x12c000 -remappable -mustbeconnected
-    iadddocumentation -name Description -text "Video memory, sized VIN_DEFAULT_MAX_FRAME_INDEX * 640x480x4Byte=1228800Byte"
+  imodeladdbusslaveport -name VINMEMBUS -size 0xbb8000 -remappable -mustbeconnected
+    iadddocumentation -name Description -text "Video memory, sized VIN_DEFAULT_MAX_FRAME_INDEX=10 * 640x480x4Byte=10*1228800Byte"
 
   imodeladdformal -name "bigEndianGuest" -type bool
   imodeladdformal -name "scale" -type bool
