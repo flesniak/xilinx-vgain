@@ -12,9 +12,9 @@ ifeq ($($(CROSS)_CC),)
     IMPERAS_ERROR := $(error "Please install the $(CROSS) toolchain")
 endif
 
-IMPERAS_CC += -std=gnu99
+IMPERAS_CC += -std=gnu99 -O3 -Wall
 
-ASRC = dumpvideo.c
+ASRC = dumpvideo.c susan.c
 ASRCINC?=microblaze_io.c
 
 AINCOBJ=$(patsubst %.c,%.$(CROSS).o,$(ASRCINC))

@@ -6,9 +6,9 @@
 #include "../../xilinx-dvi/dvi-mem.h"
 
 int main() {
-  unsigned int* ir    = (unsigned int*)VIN_IR_ADDR;
-  unsigned int* fbIn  = (unsigned int*)VIN_DEFAULT_VMEM_ADDRESS;
-  unsigned int* fbOut = (unsigned int*)DVI_VMEM_ADDRESS;
+  volatile unsigned int* ir    = (unsigned int*)VIN_IR_ADDR;
+           unsigned int* fbIn  = (unsigned int*)VIN_DEFAULT_VMEM_ADDRESS;
+           unsigned int* fbOut = (unsigned int*)DVI_VMEM_ADDRESS;
 
   int frames = 0;
   printf("Start dumping frames...\n");
