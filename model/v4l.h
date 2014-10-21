@@ -109,5 +109,6 @@ int v4lClose(v4lT* s);
 //internal functions
 gdImagePtr v4lDecodeMJPEG(void* data, int len);
 int v4lDecodeYUYV(v4lBufT* rgb, v4lBufT* yuf);
+bool v4lFixHuffman(void** data, int* len);
 
 #endif //V4L_H
