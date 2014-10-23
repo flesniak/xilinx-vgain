@@ -61,7 +61,7 @@ inline static void retArg(vmiProcessorP processor, vmiosObjectP object, Uns64 re
 
 void byteswapVmem(v4lBufT* framebuffer) {
   uint32_t* d = (uint32_t*)framebuffer->data;
-  uint32_t* dEnd = d + framebuffer->length;
+  uint32_t* dEnd = d + framebuffer->length/4; //if length%4!=0, last <4 bytes won't be swapped (undefined?)
   for( ; d < dEnd; d++ )
     *d = bswap_32(*d);
 }
@@ -78,18 +78,19 @@ static void* streamerThread(void* objectV) {
   }
 
   while( object->streamerState == 1 ) {
-    v4lBufT* buf = v4lGetImage(object->v4l); //get every frame to avoid framedropping and having stale images in the queue
+    v4lBufT* buf = v4lGetImage(object->v4l); //get every frame to avoid framedropping and having stale images in the queue, this function will block until a buffer is filled
     if( !buf ) {
-      vmiMessage("W", "VIN_SH", "Failed to get image");
+      vmiMessage("W", "VIN_SH", "THREAD: Failed to get image");
       continue;
     }
     if( object->captureImages ) {
       if( v4lDecodeImage(object->v4l, &object->framebuffers[object->nextBuffer], buf, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT) ) {
-        vmiMessage("W", "VIN_SH", "Could not decode captured image, dropping");
+        vmiMessage("W", "VIN_SH", "THREAD: Could not decode captured image, dropping");
         continue;
       }
       if( object->byteswap )
         byteswapVmem(&object->framebuffers[object->nextBuffer]);
+      //vmiMessage("I", "VIN_SH", "THREAD: CAPTURE frame %d", object->nextBuffer);
       if( object->nextBuffer >= object->framebufferCount-1 ) //if last buffer is captured, stop capturing (original behaviour of video_to_vfbc is unknown)
         object->captureImages = 0;
       else
@@ -160,33 +161,43 @@ static VMIOS_INTERCEPT_FN(initDevice) {
 }
 
 static VMIOS_INTERCEPT_FN(configureDevice) {
+  if( object->framebufferCount ) {
+  	vmiMessage("W", "VIN_SH", "Superfluous call to configureDevice suppressed, already configured");
+    retArg(processor, object, 1);
+	}
+
   Uns32 index = 0;
   GET_ARG(processor, object, index, object->vmemAddr);
   GET_ARG(processor, object, index, object->framebufferOffset);
   GET_ARG(processor, object, index, object->framebufferCount);
-  if( object->framebufferCount ) {
-  	vmiMessage("W", "VIN_SH", "Superfluous call to configureDevice suppressed, already configured");
-  	return;
-	}
-  vmiMessage("I", "VIN_SH", "Initializing %d buffers at addr 0x%08x offset 0x%08x)", ++object->framebufferCount, object->vmemAddr, object->framebufferOffset);
+  if( ++object->framebufferCount > VIN_DEFAULT_MAX_FRAMES ) //look at that pre-increment, it's important. maybe not the most intelligent spot to do that.
+    vmiMessage("F", "VIN_SH", "More than VIN_DEFAULT_MAX_FRAMES frames requested, aborting");
+  vmiMessage("I", "VIN_SH", "Initializing %d buffers at addr 0x%08x offset 0x%08x", object->framebufferCount, object->vmemAddr, object->framebufferOffset);
 
   unsigned int currentAddr = object->vmemAddr;
   for( uint32_t i = 0; i < object->framebufferCount; i++ ) {
     object->framebuffers[i].data = calloc(1, VIN_VMEM_SIZE_FRAME);
-    if( !vmirtMapNativeMemory(object->guestDomain,currentAddr, currentAddr+VIN_VMEM_SIZE-1, object->framebuffers[i].data) )
+    if( object->framebuffers[i].data == 0 )
+    	vmiMessage("F", "VIN_SH", "Failed to allocate buffer %d", i);
+    object->framebuffers[i].length = VIN_VMEM_SIZE_FRAME;
+    vmiMessage("I", "VIN_SH", "Mapping buffer %d at addr 0x%08x", i, currentAddr);
+    if( !vmirtMapNativeMemory(object->guestDomain, currentAddr, currentAddr+VIN_VMEM_SIZE_FRAME-1, object->framebuffers[i].data) )
     	vmiMessage("F", "VIN_SH", "Failed to map native vmem to semihost memory domain");
-  	currentAddr += VIN_VMEM_SIZE + object->framebufferOffset;
+  	currentAddr += VIN_VMEM_SIZE_FRAME + object->framebufferOffset;
 	}
+
+  retArg(processor, object, 1);
 }
 
 static VMIOS_INTERCEPT_FN(enable) {
   Uns32 index = 0;
+  object->nextBuffer = 0;
   GET_ARG(processor, object, index, object->captureImages);
 }
 
 //get the current state (frame index, last frame done, frame capture enabled)
 static VMIOS_INTERCEPT_FN(getState) {
-  unsigned int state = (object->nextBuffer << 16) | ((object->nextBuffer==object->framebufferCount) ? (1 << 15) : 0) | (object->captureImages ? (1 << 3) : 0) | 1;
+  unsigned int state = (object->nextBuffer << VIN_CONTROL_FRAMEIDX_OFFSET) | ((object->nextBuffer+1>=object->framebufferCount && !object->captureImages) ? (1 << VIN_CONTROL_LASTFRAME_OFFSET) : 0) | (object->captureImages ? (1 << VIN_CONTROL_CAPTURE_OFFSET) : 0) | (1 << VIN_CONTROL_ENABLE_OFFSET);
   retArg(processor, object, state);
 }
 
@@ -222,7 +233,7 @@ static VMIOS_CONSTRUCTOR_FN(constructor) {
   
   for( int i = 0; i < VIN_DEFAULT_MAX_FRAMES; i++ ) {
     object->framebuffers[i].data = 0; //allocate dynamically later on...
-    object->framebuffers[i].length = VIN_VMEM_SIZE;
+    object->framebuffers[i].length = 0;
     object->framebuffers[i].w = VIN_VMEM_WIDTH;
     object->framebuffers[i].h = VIN_VMEM_HEIGHT;
   }
@@ -236,7 +247,7 @@ static VMIOS_CONSTRUCTOR_FN(destructor) {
     vmiMessage("W", "VIN_SH", "Failed to close input device");
   if( object->v4l )
     free(object->v4l);
-  for( int i = 0; i < VIN_DEFAULT_MAX_FRAMES; i++ )
+  for( int i = 0; i < object->framebufferCount; i++ )
     if( object->framebuffers[i].data )
       free(object->framebuffers[i].data);
   vmiMessage("I", "VIN_SH", "Shutdown complete");

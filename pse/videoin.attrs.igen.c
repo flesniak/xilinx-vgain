@@ -4,7 +4,7 @@
 //                W R I T T E N   B Y   I M P E R A S   I G E N
 //
 //                             Version 20131018.0
-//                          Mon Sep 29 12:14:04 2014
+//                          Tue Oct 21 12:43:48 2014
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +17,6 @@
 #    include "hostapi/impTypes.h"
 #endif
 
-#include "../vin-cfg.h"
 
 static ppmBusPort busPorts[] = {
     {
@@ -31,10 +30,10 @@ static ppmBusPort busPorts[] = {
     {
         .name            = "VINMEMBUS",
         .type            = PPM_SLAVE_PORT,
-        .addrHi          = VIN_VMEM_SIZE-1, //extend VINMEMBUS to maximum size configured in vin-cfg.h
+        .addrHi          = 0xbb7fffLL,
         .mustBeConnected = 1,
         .remappable      = 1,
-        .description     = "Video memory, sized VIN_DEFAULT_MAX_FRAME_INDEX * 640x480x4Byte=1228800Byte",
+        .description     = "Video memory, sized VIN_DEFAULT_MAX_FRAME_INDEX=10 * 640x480x4Byte=10*1228800Byte",
     },
     { 0 }
 };

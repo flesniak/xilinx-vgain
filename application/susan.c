@@ -1844,21 +1844,47 @@ void blur(unsigned char* data, int xsize, int ysize) {
 
 #include "../vin-cfg.h"
 
-//read image from VIN peripheral and convert to grayscale
-void getImage(void* dst, int* xsize, int* ysize) {
-  volatile unsigned int* ir    = (unsigned int*)VIN_IR_ADDR;
-           unsigned int* fbIn  = (unsigned int*)VIN_DEFAULT_VMEM_ADDRESS;
-           unsigned char* cdst = (unsigned char*)dst;
+void configureInput(void* baseAddr, int nBuffers, int offset) {
+  volatile unsigned int* const control = (unsigned int*)VIN_CONTROL_ADDR;
+  volatile unsigned int* const maxIdx  = (unsigned int*)VIN_MAXFRMINDEX_ADDR;
+  volatile unsigned int* const frmAddr = (unsigned int*)VIN_FRM0ADDR_ADDR;
+  volatile unsigned int* const frmOff  = (unsigned int*)VIN_FRMOFFSET_ADDR;
+  volatile unsigned int* const xsize   = (unsigned int*)VIN_XSIZE_ADDR;
+  volatile unsigned int* const ysize   = (unsigned int*)VIN_YSIZE_ADDR;
+  volatile unsigned int* const stride  = (unsigned int*)VIN_STRIDE_ADDR;
 
-  *ir = VIN_IR_REQ_MASK; //request frame
-  while( *ir & VIN_IR_REQ_MASK ); //poll for requested frame
+  printf("Configuring video_to_vfbc addr 0x%08x offset %d maxFrms %d\n", (unsigned int)baseAddr, offset, nBuffers);
+  *maxIdx   = nBuffers-1;
+  *frmAddr  = (unsigned int)baseAddr;
+  *frmOff   = offset;
+  *xsize    = VIN_VMEM_WIDTH;
+  *ysize    = VIN_VMEM_HEIGHT;
+  *stride   = VIN_VMEM_SCANLINE_BYTES;
+  *control |= VIN_CONTROL_ENABLE_MASK; //configure device
+  *control |= VIN_CONTROL_CAPTURE_MASK; //start first capture
+}
+
+//read image from VIN peripheral and convert to grayscale
+void getImage(void* dst, int* xsize, int* ysize, void* baseAddr, int nBuffers, int offset) {
+  volatile unsigned int* const control = (unsigned int*)VIN_CONTROL_ADDR;
+           unsigned int* const fbIn    = (unsigned int*)baseAddr;
+           unsigned char* const cdst   = (unsigned char*)dst;
+
+  static int nextFrame = 0;
+
+  if( nextFrame >= nBuffers && !(*control & VIN_CONTROL_CAPTURE_MASK) ) { //capturing is not yet enabled or disabled after capturing last frame
+    *control |= VIN_CONTROL_CAPTURE_MASK;
+    nextFrame = 0;
+  }
+  while( (*control >> 16) <= nextFrame && !(*control & VIN_CONTROL_LASTFRAME_MASK) ); //retry if expected frame is still being written
 
   for( unsigned int y = 0; y < VIN_VMEM_HEIGHT; y++ )
     for( unsigned int x = 0; x < VIN_VMEM_WIDTH; x++ ) {
-      unsigned int in = *(fbIn+y*VIN_VMEM_SCANLINE_PIXELS+x);
+      unsigned int in = *(fbIn+(nextFrame*(VIN_VMEM_SIZE_FRAME/4+offset))+y*VIN_VMEM_SCANLINE_PIXELS+x);
       in = ((in & 0xFF) + (in >> 8 & 0xFF) + (in >> 16 & 0xFF))/3;
       *(cdst+y*VIN_VMEM_WIDTH+x) = in > 0xFF ? 0xFF : in;
     }
+  nextFrame++;
 
   *xsize = VIN_VMEM_WIDTH;
   *ysize = VIN_VMEM_HEIGHT;
@@ -1910,20 +1936,20 @@ CORNER_LIST corner_list;
   if ( (principle==1) && (mode==0) )
     mode=1;
 
-  printf("bp 1 %p\n", bp);
   memset(bp,0,516);
   switch( mode ) {
   case 0: setup_brightness_lut(&bp,bt,2); break;
   case 1: setup_brightness_lut(&bp,bt,6); break;
   case 2: setup_brightness_lut(&bp,bt,6); break;
   }
-  printf("bp 2 %p\n", bp);
+  
+  configureInput((void*)VIN_DEFAULT_VMEM_ADDRESS, 3, 0);
 
   //in = malloc(VIN_VMEM_WIDTH*VIN_VMEM_HEIGHT);
   while( 1 ) {
     printf("processing next image\n");
     //memcpy(in,picture,x_size*y_size);
-    getImage(in, &x_size, &y_size);
+    getImage(in, &x_size, &y_size, (void*)VIN_DEFAULT_VMEM_ADDRESS, 3, 0);
     //memset(r,0,x_size * y_size * sizeof(int));
     //putImage(in, x_size, y_size); continue;
 

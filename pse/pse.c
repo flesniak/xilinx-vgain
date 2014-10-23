@@ -34,7 +34,9 @@ PPM_REG_READ_CB(readReg) {
   switch( reg ) {
     case 0 : //control register
       bhmMessage("D", "VIN_PSE", "Read from CONTROL for %d bytes at 0x%08x", bytes, (Uns32)addr);
-      unsigned int ret = getState();
+      unsigned int ret = 0;
+      if( deviceConfigured )
+        ret = getState();
       return bigEndianGuest ? bswap_32(ret) : ret;
       break;
     case 1 : //xsize register
@@ -87,8 +89,8 @@ PPM_REG_WRITE_CB(writeReg) {
         if( data & ~VIN_CONTROL_ENABLE_MASK )
           bhmMessage("W", "VIN_PSE", "Writing to CONTROL before ENABLE set to one is unsupported");
         if( data & VIN_CONTROL_ENABLE_MASK ) {
-          bhmMessage("W", "VIN_PSE", "Configureing device to use frm0baseaddr 0x%08x, frmoffset 0x%08x, max frame index %d", CFGBUS_AB0_data.FRM0_BASEADDR.value, CFGBUS_AB0_data.FRM_ADDROFFSET.value, CFGBUS_AB0_data.MAX_FRAME_INDEX.value);
-          configureDevice(CFGBUS_AB0_data.FRM0_BASEADDR.value, CFGBUS_AB0_data.FRM_ADDROFFSET.value, CFGBUS_AB0_data.MAX_FRAME_INDEX.value);
+          bhmMessage("I", "VIN_PSE", "Configuring device to use frm0baseaddr 0x%08x, frmoffset 0x%08x, max frame index %d", CFGBUS_AB0_data.FRM0_BASEADDR.value, CFGBUS_AB0_data.FRM_ADDROFFSET.value, CFGBUS_AB0_data.MAX_FRAME_INDEX.value);
+          deviceConfigured = configureDevice(CFGBUS_AB0_data.FRM0_BASEADDR.value, CFGBUS_AB0_data.FRM_ADDROFFSET.value, CFGBUS_AB0_data.MAX_FRAME_INDEX.value);
         }
       }
       break;
