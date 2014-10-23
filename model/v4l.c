@@ -1,7 +1,9 @@
 #include "v4l.h"
+#include "huffman.h"
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -365,10 +367,46 @@ int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h) {
   return 1;
 }
 
+//searches for a valid huffman table, if none is found, injects one
+bool v4lFixHuffman(void** data, int* len) {
+  int origLen = *len;
+  unsigned char* d = (unsigned char*)*data;
+  bool dhtFound = 0;
+
+  //search for huffman segment
+  while( !dhtFound ) {
+    if( d[0] == 0xff && d[1] == 0xd8 ) {
+      d += 2; //skip SOI
+      continue;
+    }
+    if( d[0] != 0xff ) //jfif segment should always start with 0xFF
+      dhtFound = 1; //no valid segment start
+    if( d[1] == 0xda ) //start of scan -> every jfif segment scanned, no dht found. insert it here.
+      break;
+    if( d[1] == 0xc4 ) //dht segment is 0xc4
+      dhtFound = 1;
+    else
+      d += ((unsigned int)d[2] << 8) + d[3] + 2; //go to next segment
+  }
+
+  //insert huffman table if not found
+  if( !dhtFound ) {
+    *len = origLen + sizeof(huffmanTable);
+    unsigned char* newData = malloc( *len );
+    const unsigned int offset = (void*)d-*data;
+    memcpy(newData, *data, offset);
+    memcpy(newData+offset, huffmanTable, sizeof(huffmanTable));
+    memcpy(newData+offset+sizeof(huffmanTable), d, origLen-offset);
+    *data = newData;
+    return true;
+  }
+  return false;
+}
+
 gdImagePtr v4lDecodeMJPEG(void* data, int len) {
   while( len > 3 ) {
     unsigned char* d = (unsigned char*)data;
-    if( d[0] == 0xFF && d[1] == 0xD8 && d[2] == 0xFF )
+    if( d[0] == 0xFF && d[1] == 0xD8 && d[2] == 0xFF ) //SOI + start of first segment (usually JFIF)
       break;
     data = d+1; len--;
   }
@@ -376,7 +414,10 @@ gdImagePtr v4lDecodeMJPEG(void* data, int len) {
     fprintf(stderr, "No valid jpeg magic found\n");
     return 0;
   }
+  bool fixed = v4lFixHuffman(&data, &len);
   gdImagePtr img = gdImageCreateFromJpegPtr(len, data);
+  if( fixed )
+    free(data);
   return img;
 }
 
