@@ -166,8 +166,8 @@ static VMIOS_INTERCEPT_FN(mapMemory) {
     vmirtUnaliasMemory(object->guestDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1);
     vmirtMapMemory(object->guestDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1, MEM_RAM);
     vmirtWriteNByteDomain(object->guestDomain, object->vmemAddr, object->framebuffer.data, VIN_VMEM_SIZE, 0, MEM_AA_FALSE);
-    vmirtReadNByteDomain(object->guestDomain, newVmemAddress, object->framebuffer.data, VIN_VMEM_SIZE, 0, MEM_AA_FALSE);
   }
+  vmirtReadNByteDomain(object->guestDomain, newVmemAddress, object->framebuffer.data, VIN_VMEM_SIZE, 0, MEM_AA_FALSE);
   vmirtMapNativeMemory(object->guestDomain, newVmemAddress, newVmemAddress+VIN_VMEM_SIZE-1, object->framebuffer.data);
   object->vmemAddr = newVmemAddress;
 }
