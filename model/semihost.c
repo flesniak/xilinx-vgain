@@ -38,6 +38,11 @@ typedef struct vmiosObjectS {
   pthread_t streamer;
   int streamerState;
   uint32_t request;
+
+  //stats
+  unsigned int frames;
+  unsigned int droppedFrames;
+  unsigned int errorFrames;
 } vmiosObject;
 
 static void getArg(vmiProcessorP processor, vmiosObjectP object, Uns32 *index, void* result, Uns32 argSize) {
@@ -78,17 +83,21 @@ static void* streamerThread(void* objectV) {
     v4lBufT* buf = v4lGetImage(object->v4l); //get every frame to avoid framedropping and having stale images in the queue
     if( !buf ) {
       vmiMessage("W", "VIN_SH", "Failed to get image");
+      object->errorFrames++;
       continue;
     }
+    object->frames++;
     if( object->request ) {
       if( v4lDecodeImage(object->v4l, &object->framebuffer, buf, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT) ) {
         vmiMessage("W", "VIN_SH", "Could not decode captured image, dropping");
+        object->errorFrames++;
         continue;
       }
       if( object->byteswap )
         byteswapVmem(&object->framebuffer);
       object->request = 0;
-    }
+    } else
+      object->droppedFrames++;
   }
   object->streamerState = 0; //thread is stopped
   pthread_exit(0);
@@ -207,6 +216,9 @@ static VMIOS_CONSTRUCTOR_FN(constructor) {
   object->streamer = 0;
   object->streamerState = 0;
   object->request = 0;
+  object->frames = 0;
+  object->droppedFrames = 0;
+  object->errorFrames = 0;
 }
 
 static VMIOS_CONSTRUCTOR_FN(destructor) {
@@ -219,7 +231,7 @@ static VMIOS_CONSTRUCTOR_FN(destructor) {
     free(object->v4l);
   if( object->framebuffer.data )
     free(object->framebuffer.data);
-  vmiMessage("I", "VIN_SH", "Shutdown complete");
+  vmiMessage("I", "VIN_SH", "Shutdown complete: %d frames captured, thereof %d frames dropped and %d frames with errors", object->frames, object->droppedFrames, object->errorFrames);
 }
 
 vmiosAttr modelAttrs = {
