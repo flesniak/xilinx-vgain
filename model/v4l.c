@@ -321,9 +321,12 @@ v4lBufT* v4lGetImage(v4lT* s) {
 }
 
 int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h) {
+  static int warn_printed = 0;
   if( s->fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV ) {
-    if( w || h )
+    if( (w || h) && warn_printed == 0 ) {
       fprintf(stderr, "Warning: scaling YUYV input is not implemented yet, will not scale\n");
+      warn_printed++;
+    }
     if( decoded->length < encoded->length*2 )
       fprintf(stderr, "Decode buffer is too small to hold the decoded image\n");
     int success = v4lDecodeYUYV(decoded, encoded);

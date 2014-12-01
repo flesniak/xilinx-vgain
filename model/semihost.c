@@ -63,7 +63,7 @@ inline static void retArg(vmiProcessorP processor, vmiosObjectP object, Uns64 re
 
 void byteswapVmem(v4lBufT* framebuffer) {
   uint32_t* d = (uint32_t*)framebuffer->data;
-  uint32_t* dEnd = d + framebuffer->length;
+  uint32_t* dEnd = d + framebuffer->length/4;
   for( ; d < dEnd; d++ )
     *d = bswap_32(*d);
 }
