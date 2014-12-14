@@ -4,7 +4,7 @@
 //                W R I T T E N   B Y   I M P E R A S   I G E N
 //
 //                             Version 20131018.0
-//                          Tue Sep 16 12:19:46 2014
+//                          Sun Dec 14 16:53:54 2014
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +29,7 @@
 #define CFGBUS_AB0_AR_BASEADDR   0xffffffff
 #define CFGBUS_AB0_IR    (CFGBUS + 0x4)
 
-#define CFGBUS_AB0_IR_BASEADDR   0x1
+#define CFGBUS_AB0_IR_REQUEST   0x1
 
 
 #endif

@@ -4,7 +4,7 @@
 //                W R I T T E N   B Y   I M P E R A S   I G E N
 //
 //                             Version 20131018.0
-//                          Tue Sep 16 12:19:46 2014
+//                          Sun Dec 14 16:53:54 2014
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +35,7 @@ typedef struct CFGBUS_AB0_dataS {
     union { 
         Uns32 value;
         struct {
-            unsigned BASEADDR : 1;
+            unsigned REQUEST : 1;
         } bits;
     } IR;
 } CFGBUS_AB0_dataT, *CFGBUS_AB0_dataTP;

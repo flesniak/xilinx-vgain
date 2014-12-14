@@ -22,6 +22,8 @@ int main() {
     frames++;
     if( (frames & 0xF) == 0 )
       printf("Dumped %d frames\n", frames);
+    if( frames == 1000 )
+      break;
   }
 
   return 0;

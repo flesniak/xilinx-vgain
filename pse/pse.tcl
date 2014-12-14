@@ -8,7 +8,7 @@ iadddocumentation   -name Description -text "V4L2 to OVP video input peripheral"
     imodeladdfield        -name BASEADDR -bitoffset 0 -width 32 -access rw -mmregister CFGBUS/AB0/AR
       iadddocumentation -name Description -text "Framebuffer target address in host memory"
   imodeladdmmregister   -name IR   -offset 0  -width 32 -access rw -readfunction readReg -writefunction writeReg -userdata 1
-    imodeladdfield        -name BASEADDR -bitoffset 0 -width 1 -access rw -mmregister CFGBUS/AB0/IR
+    imodeladdfield        -name REQUEST -bitoffset 0 -width 1 -access rw -mmregister CFGBUS/AB0/IR
       iadddocumentation -name Description -text "Set to request a picture from input, cleared by hardware"
 
   imodeladdnetport -name VINSYNCINT -type output
