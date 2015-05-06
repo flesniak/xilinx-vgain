@@ -194,9 +194,9 @@ int v4lSetFormat(v4lT* s, int formatIndex, int width, int height) {
   s->fmt.fmt.pix.pixelformat = s->fmts[formatIndex].pixelformat; //use preferred supported format (YUYV/MJPEG)
   s->fmt.fmt.pix.field = V4L2_FIELD_NONE;
   if( v4l2_ioctl(s->cam, VIDIOC_S_FMT, &s->fmt) ) {
-	  perror("Failed to set video format");
+    perror("Failed to set video format");
     v4lClose(s);
-	  return 1;
+    return 1;
   }
   return 0;
 }
@@ -240,7 +240,7 @@ int v4lSetupMmap(v4lT* s, int nBuffers) {
     v4lClose(s);
     return 1;
   }
-  for( int i = 0; i < s->rqbuf.count; i++ ) {
+  for( unsigned int i = 0; i < s->rqbuf.count; i++ ) {
     memset(&s->buf, 0, sizeof(s->buf));
     s->buf.index = i;
     s->buf.type = s->rqbuf.type;
@@ -271,7 +271,7 @@ int v4lStartStreaming(v4lT* s) {
     return 1;
   }
   //enqueue all ya buffers
-  for( int i = 0; i < s->rqbuf.count; i++ ) {
+  for( unsigned int i = 0; i < s->rqbuf.count; i++ ) {
     memset(&s->buf, 0, sizeof(s->buf));
     s->buf.index = i;
     s->buf.type = s->rqbuf.type;
@@ -320,16 +320,18 @@ v4lBufT* v4lGetImage(v4lT* s) {
   return s->bufs+s->buf.index;
 }
 
-int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h) {
+int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h, bool scale) {
   if( s->fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV ) {
-    if( w || h )
-      fprintf(stderr, "Warning: scaling YUYV input is not implemented yet, will not scale\n");
+    if( scale )
+      fprintf(stderr, "Warning: scaling YUYV input is not implemented yet, will pad instead\n");
     if( decoded->length < encoded->length*2 )
       fprintf(stderr, "Decode buffer is too small to hold the decoded image\n");
-    int success = v4lDecodeYUYV(decoded, encoded);
-    decoded->w = s->fmt.fmt.pix.width;
-    decoded->h = s->fmt.fmt.pix.height;
-    return success;
+    //v4lDecodeYUYV uses w/h of encoded/decoded to calculate padding (if necessary)
+    encoded->w = s->fmt.fmt.pix.width;
+    encoded->h = s->fmt.fmt.pix.height;
+    decoded->w = w;
+    decoded->h = h;
+    return v4lDecodeYUYV(decoded, encoded);
   }
 
   if( s->fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_MJPEG ) {
@@ -339,16 +341,21 @@ int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h) {
       return 1;
     }
 
-    decoded->w = gdImageSX(img);
-    decoded->h = gdImageSY(img);
+    int imgWidth = gdImageSX(img);
+    int imgHeight = gdImageSY(img);
 
-    if( w && h && (decoded->w != w || decoded->h != h) ) {
-      gdImagePtr src = img;
-      img = gdImageCreateTrueColor(w, h);
-      gdImageCopyResized(img, src, 0, 0, 0, 0, w, h, decoded->w, decoded->h);
-      gdImageDestroy(src);
-      decoded->w = w;
-      decoded->w = h;
+    if( w && h && (imgWidth != w || imgHeight != h) ) {
+      if( scale ) { //scale image if necessary, padding will be done below
+        gdImagePtr src = img;
+        img = gdImageCreateTrueColor(w, h);
+        gdImageCopyResized(img, src, 0, 0, 0, 0, w, h, imgWidth, imgHeight);
+        gdImageDestroy(src);
+      }
+      decoded->w = w; //decoded image will be wxh (scaled or padded)
+      decoded->h = h;
+    } else {
+      decoded->w = imgWidth; //decoded image is exactly as big as decoded image
+      decoded->h = imgHeight;
     }
 
     if( decoded->length < decoded->w*decoded->h*4 ) {
@@ -356,8 +363,9 @@ int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h) {
       return 1;
     }
 
-    for( int y = 0; y < decoded->h; y++ )
-      for( int x = 0; x < decoded->w; x++ )
+    //copy pixel data (and implicitly pad with black borders)
+    for( int y = 0; y < imgHeight; y++ )
+      for( int x = 0; x < imgWidth; x++ )
         *(((uint32_t*)decoded->data)+y*decoded->w+x) = gdImageGetPixel(img, x, y);
     gdImageDestroy(img);
     return 0;
@@ -404,7 +412,7 @@ bool v4lFixHuffman(void** data, int* len) {
 }
 
 gdImagePtr v4lDecodeMJPEG(void* data, int len) {
-  while( len > 3 ) {
+  while( len > 3 ) { //skip potential garbage till JPEG header is found
     unsigned char* d = (unsigned char*)data;
     if( d[0] == 0xFF && d[1] == 0xD8 && d[2] == 0xFF ) //SOI + start of first segment (usually JFIF)
       break;
@@ -424,8 +432,31 @@ gdImagePtr v4lDecodeMJPEG(void* data, int len) {
 #define CLAMP(a) ((a) > 0xFF ? 0xff : ((a) < 0 ? 0 : (a)))
 
 int v4lDecodeYUYV(v4lBufT* rgb, v4lBufT* yuf) {
-  unsigned char* src = yuf->data;
-  unsigned char* dst = rgb->data;
+  unsigned char* src;
+  unsigned char* dst;
+  for( int y = 0; y < yuf->h; y++ ) {
+    src = yuf->data + y*yuf->w;
+    dst = rgb->data + y*rgb->w; //offset calculation using width implements padding
+    for( int nibble = 0; nibble < yuf->w/2; nibble++ ) { // one yuyv nibble is 2 pixels
+      unsigned char* y1 = src+4*nibble+0;
+      unsigned char* u  = src+4*nibble+1;
+      unsigned char* y2 = src+4*nibble+2;
+      unsigned char* v  = src+4*nibble+3;
+      unsigned char* r1 = dst+8*nibble+2;
+      unsigned char* g1 = dst+8*nibble+1;
+      unsigned char* b1 = dst+8*nibble+0;
+      unsigned char* r2 = dst+8*nibble+6;
+      unsigned char* g2 = dst+8*nibble+5;
+      unsigned char* b2 = dst+8*nibble+4;
+      *r1 = CLAMP((float)*y1 + 1.14    * ((float)*v-128));
+      *g1 = CLAMP((float)*y1 - 0.39393 * ((float)*u-128) - 0.58081 * ((float)*v-128));
+      *b1 = CLAMP((float)*y1 + 2.028   * ((float)*u-128));
+      *r2 = CLAMP((float)*y2 + 1.14    * ((float)*v-128));
+      *g2 = CLAMP((float)*y2 - 0.39393 * ((float)*u-128) - 0.58081 * ((float)*v-128));
+      *b2 = CLAMP((float)*y2 + 2.028   * ((float)*u-128));
+    }
+  }
+/*  //old implementation without using width/height (does not pad)
   int dataMax = MIN(yuf->length, rgb->length/2);
   for( int i = 0; i < dataMax; i+=4 ) {
     unsigned char* y1 = src+i+0;
@@ -444,7 +475,7 @@ int v4lDecodeYUYV(v4lBufT* rgb, v4lBufT* yuf) {
     *r2 = CLAMP((float)*y2 + 1.14    * ((float)*v-128));
     *g2 = CLAMP((float)*y2 - 0.39393 * ((float)*u-128) - 0.58081 * ((float)*v-128));
     *b2 = CLAMP((float)*y2 + 2.028   * ((float)*u-128));
-  }
+  }*/
   return 0;
 }
 
@@ -466,7 +497,7 @@ int v4lClose(v4lT* s) {
     s->frmIvalCount = 0;
   }
   if( s->bufs ) {
-    for( int i = 0; i < s->rqbuf.count; i++ )
+    for( unsigned int i = 0; i < s->rqbuf.count; i++ )
       munmap(s->bufs[i].data, s->bufs[i].length);
     free(s->bufs);
     s->bufs = 0;

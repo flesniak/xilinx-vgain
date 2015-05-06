@@ -15,8 +15,8 @@ int main() {
   while( 1 ) {
     *ir = VIN_IR_REQ_MASK; //request frame
     while( *ir & VIN_IR_REQ_MASK ); //poll for requested frame
-    for( unsigned int y = 0; y < VIN_VMEM_HEIGHT; y++ )
-      for( unsigned int x = 0; x < VIN_VMEM_WIDTH; x++ )
+    for( unsigned int y = 0; y < VIN_CAPTURE_HEIGHT; y++ )
+      for( unsigned int x = 0; x < VIN_CAPTURE_WIDTH; x++ )
         *(fbOut+y*DVI_VMEM_WIDTH+x) = (*(fbIn+y*VIN_VMEM_SCANLINE_PIXELS+x)) & 0x00FCFCFC;
     //printf("dumpvideo: in 0x%08x out 0x%08x\n", *fbIn, *fbOut);
     frames++;

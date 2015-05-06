@@ -26,7 +26,7 @@ typedef struct v4lS {
 
   int fmtsCount;
   struct v4l2_fmtdesc* fmts;
-  __u32 preferredPixFmtIndex;
+  int preferredPixFmtIndex;
 
   int frmSizeCount;
   struct v4l2_frmsizeenum* frmSizes;
@@ -98,8 +98,9 @@ v4lBufT* v4lGetImage(v4lT* s);
 
 // Decode a image buffer (encoded) to another (decoded) buffer.
 // Handles YUYV and MJPEG formats (scaling is not supported for YUYV)
-// If w and h are greater than 0, try to scale the input to wxh.
-int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h);
+// If w and h are greater than 0, the image will be padded with black space
+// or scaled to wxh, depending on the value of scale.
+int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h, bool scale);
 
 // Close the camera device.
 // Unmaps all buffers and frees everything that was allocated

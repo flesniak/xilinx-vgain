@@ -194,7 +194,7 @@ int main( int argc, char** argv ) {
     if( options.capture ) {
       icmAttrListP pseAttrs = icmNewAttrList();
       icmAddBoolAttr(pseAttrs, "bigEndianGuest", 1);
-      icmAddBoolAttr(pseAttrs, "scale", 1);
+      icmAddBoolAttr(pseAttrs, "scale", 0);
       icmAddStringAttr(pseAttrs, "device", options.capture);
       icmAddBoolAttr(pseAttrs, "byteswap", 1);
 

@@ -66,7 +66,6 @@ void byteswapVmem(v4lBufT* framebuffer) {
   uint32_t* dEnd = d + framebuffer->length/4;
   for( ; d < dEnd; d++ )
     *d = bswap_32(*d);
-  return;
 }
 
 static void* streamerThread(void* objectV) {
@@ -89,7 +88,7 @@ static void* streamerThread(void* objectV) {
     }
     object->frames++;
     if( object->request ) {
-      if( v4lDecodeImage(object->v4l, &object->framebuffer, buf, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT) ) {
+      if( v4lDecodeImage(object->v4l, &object->framebuffer, buf, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT, object->scale) ) {
         vmiMessage("W", "VIN_SH", "Could not decode captured image, dropping");
         object->errorFrames++;
         continue;
@@ -107,13 +106,14 @@ static void* streamerThread(void* objectV) {
 memDomainP getSimulatedVmemDomain(vmiProcessorP processor, char* name) {
   Addr lo, hi;
   Bool isMaster, isDynamic;
-  memDomainP simDomain = vmipsePlatformPortAttributes(processor, VIN_VMEM_BUS_NAME, &lo, &hi, &isMaster, &isDynamic);
+  memDomainP simDomain = vmipsePlatformPortAttributes(processor, name, &lo, &hi, &isMaster, &isDynamic);
   if( !simDomain )
-    vmiMessage("F", "VIN_SH", "Failed to obtain %s platform port", VIN_VMEM_BUS_NAME);
+    vmiMessage("F", "VIN_SH", "Failed to obtain %s platform port", name);
   return simDomain;
 }
 
 static VMIOS_INTERCEPT_FN(initDevice) {
+  (void)thisPC; (void)context; (void)userData; (void)atOpaqueIntercept;
   Uns32 index = 0, deviceStrP = 0;
   GET_ARG(processor, object, index, deviceStrP);
   GET_ARG(processor, object, index, object->scale);
@@ -137,12 +137,12 @@ static VMIOS_INTERCEPT_FN(initDevice) {
     retArg(processor, object, 1); //return failure
     return;
   }
-  if( v4lCheckFormats(object->v4l, V4L2_PIX_FMT_YUYV) ) {
+  if( v4lCheckFormats(object->v4l, V4L2_PIX_FMT_MJPEG) ) {
     vmiMessage("W", "VIN_SH", "Failed to check formats");
     retArg(processor, object, 1); //return failure
     return;
   }
-  if( v4lSetFormat(object->v4l, object->v4l->preferredPixFmtIndex, VIN_VMEM_WIDTH, VIN_VMEM_HEIGHT) ) {
+  if( v4lSetFormat(object->v4l, object->v4l->preferredPixFmtIndex, VIN_CAPTURE_WIDTH, VIN_CAPTURE_HEIGHT) ) {
     vmiMessage("W", "VIN_SH", "Failed to set format");
     retArg(processor, object, 1); //return failure
     return;
@@ -160,6 +160,11 @@ static VMIOS_INTERCEPT_FN(initDevice) {
   object->framebuffer.w = VIN_VMEM_WIDTH;
   object->framebuffer.h = VIN_VMEM_HEIGHT;
   object->guestDomain = getSimulatedVmemDomain(processor, VIN_VMEM_BUS_NAME); //just to check if VMEMBUS is connected
+  if( !object->framebuffer.data ) {
+    vmiMessage("W", "VIN_SH", "Failed to allocate internal framebuffer");
+    retArg(processor, object, 1); //return failure
+    return;
+  }
 
   vmiMessage("I", "VIN_SH", "Launching streamer thread");
   pthread_create(&object->streamer, 0, streamerThread, (void*)object);
@@ -168,6 +173,7 @@ static VMIOS_INTERCEPT_FN(initDevice) {
 }
 
 static VMIOS_INTERCEPT_FN(mapMemory) {
+  (void)thisPC; (void)context; (void)userData; (void)atOpaqueIntercept;
   Uns32 newVmemAddress = 0, index = 0;
   GET_ARG(processor, object, index, newVmemAddress);
   if( object->vmemAddr ) {
@@ -183,6 +189,7 @@ static VMIOS_INTERCEPT_FN(mapMemory) {
 }
 
 static VMIOS_INTERCEPT_FN(requestFrame) {
+  (void)thisPC; (void)context; (void)userData; (void)atOpaqueIntercept;
   Uns32 request = 0, index = 0;
   GET_ARG(processor, object, index, request);
   if( request )
@@ -191,6 +198,7 @@ static VMIOS_INTERCEPT_FN(requestFrame) {
 }
 
 static VMIOS_CONSTRUCTOR_FN(constructor) {
+  (void)parameterValues;
   vmiMessage("I" ,"VIN_SH", "Constructing");
 
   const char *procType = vmirtProcessorType(processor);
@@ -223,6 +231,7 @@ static VMIOS_CONSTRUCTOR_FN(constructor) {
 }
 
 static VMIOS_DESTRUCTOR_FN(destructor) {
+  (void)processor;
   vmiMessage("I" ,"VIN_SH", "Shutting down");
   object->streamerState = 2; //set stop condition
   pthread_join(object->streamer, 0);
@@ -252,9 +261,9 @@ vmiosAttr modelAttrs = {
     // Name                         Address  Opaque  Callback
     // -------------------          -------- ------  -----------------
     .intercepts = {
-        {"initDevice",         0,       True,   initDevice        },
-        {"mapMemory",          0,       True,   mapMemory         },
-        {"requestFrame",       0,       True,   requestFrame      },
+        {"initDevice",         0,       True,   initDevice,   0, 0 },
+        {"mapMemory",          0,       True,   mapMemory,    0, 0 },
+        {"requestFrame",       0,       True,   requestFrame, 0, 0 },
         {0}
     }
 };
