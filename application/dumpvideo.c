@@ -17,7 +17,7 @@ int main() {
     while( *ir & VIN_IR_REQ_MASK ); //poll for requested frame
     for( unsigned int y = 0; y < VIN_VMEM_HEIGHT; y++ )
       for( unsigned int x = 0; x < VIN_VMEM_WIDTH; x++ )
-        *(fbOut+y*DVI_VMEM_WIDTH+x) = (*(fbIn+y*VIN_VMEM_SCANLINE_PIXELS+x) >> 2) & 0x003F3F3F;
+        *(fbOut+y*DVI_VMEM_WIDTH+x) = (*(fbIn+y*VIN_VMEM_SCANLINE_PIXELS+x)) & 0x00FCFCFC;
     //printf("dumpvideo: in 0x%08x out 0x%08x\n", *fbIn, *fbOut);
     frames++;
     if( (frames & 0xF) == 0 )
@@ -28,4 +28,3 @@ int main() {
 
   return 0;
 }
-

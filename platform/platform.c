@@ -123,9 +123,9 @@ int main( int argc, char** argv ) {
   parseOptions( argc, argv );
 
   if( options.verbosity > 1 ) {
-    icmInit( ICM_VERBOSE | ICM_STOP_ON_CTRLC, 0, 0 );
+    icmInitPlatform( ICM_VERSION, ICM_VERBOSE | ICM_STOP_ON_CTRLC, 0, 0, "xdvi" );
   } else
-    icmInit( ICM_INIT_DEFAULT | ICM_STOP_ON_CTRLC, 0, 0 );
+    icmInitPlatform( ICM_VERSION, ICM_INIT_DEFAULT | ICM_STOP_ON_CTRLC, 0, 0, "xdvi" );
 
   const char* model = icmGetVlnvString( 0, "xilinx.ovpworld.org", "processor", "microblaze", "1.0", "model" );
   const char* semihosting = icmGetVlnvString( 0, "xilinx.ovpworld.org", "semihosting", "microblazeNewlib", "1.0", "model" );

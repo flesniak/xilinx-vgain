@@ -12,13 +12,13 @@
 
 //The following values define the layout of the framebuffer memory
 #define VIN_DEFAULT_VMEM_ADDRESS        (VIN_DEFAULT_ADDRESS+VIN_CONTROL_REGS_SIZE)
-#define VIN_VMEM_SIZE                   0x12c000U //640x480 pixels 32bpp 0xaaggbbrr (notation in little endian)
 #define VIN_VMEM_WIDTH                  640
 #define VIN_VMEM_HEIGHT                 480
 #define VIN_VMEM_BYTES_PER_PIXEL        4
 #define VIN_VMEM_BITS_PER_PIXEL         (VIN_VMEM_BYTES_PER_PIXEL*8)
 #define VIN_VMEM_SCANLINE_PIXELS        VIN_VMEM_WIDTH
 #define VIN_VMEM_SCANLINE_BYTES         (VIN_VMEM_SCANLINE_PIXELS*VIN_VMEM_BYTES_PER_PIXEL)
+#define VIN_VMEM_SIZE                   (VIN_VMEM_SCANLINE_BYTES*VIN_VMEM_HEIGHT) //640x480 pixels 32bpp 0xaaggbbrr (notation in little endian)
 #define VIN_VMEM_RMASK                  0x000000ff
 #define VIN_VMEM_GMASK                  0x0000ff00
 #define VIN_VMEM_BMASK                  0x00ff0000

@@ -63,9 +63,10 @@ inline static void retArg(vmiProcessorP processor, vmiosObjectP object, Uns64 re
 
 void byteswapVmem(v4lBufT* framebuffer) {
   uint32_t* d = (uint32_t*)framebuffer->data;
-  uint32_t* dEnd = d + framebuffer->length;
+  uint32_t* dEnd = d + framebuffer->length/4;
   for( ; d < dEnd; d++ )
     *d = bswap_32(*d);
+  return;
 }
 
 static void* streamerThread(void* objectV) {
@@ -169,15 +170,15 @@ static VMIOS_INTERCEPT_FN(initDevice) {
 static VMIOS_INTERCEPT_FN(mapMemory) {
   Uns32 newVmemAddress = 0, index = 0;
   GET_ARG(processor, object, index, newVmemAddress);
-  vmiMessage("I", "VIN_SH", "Mapping external vmem (new addr 0x%08x, old addr 0x%08x)", newVmemAddress, object->vmemAddr);
   if( object->vmemAddr ) {
     vmiMessage("I", "TFT_SH", "Unaliasing previously mapped memory at 0x%08x", object->vmemAddr);
     vmirtUnaliasMemory(object->guestDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1);
     vmirtMapMemory(object->guestDomain, object->vmemAddr, object->vmemAddr+VIN_VMEM_SIZE-1, MEM_RAM);
-    vmirtWriteNByteDomain(object->guestDomain, object->vmemAddr, object->framebuffer.data, VIN_VMEM_SIZE, 0, MEM_AA_FALSE);
+    vmirtWriteNByteDomain(object->guestDomain, object->vmemAddr, object->framebuffer.data, object->framebuffer.length, 0, MEM_AA_FALSE);
   }
-  vmirtReadNByteDomain(object->guestDomain, newVmemAddress, object->framebuffer.data, VIN_VMEM_SIZE, 0, MEM_AA_FALSE);
-  vmirtMapNativeMemory(object->guestDomain, newVmemAddress, newVmemAddress+VIN_VMEM_SIZE-1, object->framebuffer.data);
+  vmiMessage("I", "VIN_SH", "Mapping external vmem (new addr 0x%08x, old addr 0x%08x)", newVmemAddress, object->vmemAddr);
+  vmirtReadNByteDomain(object->guestDomain, newVmemAddress, object->framebuffer.data, object->framebuffer.length, 0, MEM_AA_FALSE);
+  vmirtMapNativeMemory(object->guestDomain, newVmemAddress, newVmemAddress+object->framebuffer.length-1, object->framebuffer.data);
   object->vmemAddr = newVmemAddress;
 }
 
@@ -221,7 +222,7 @@ static VMIOS_CONSTRUCTOR_FN(constructor) {
   object->errorFrames = 0;
 }
 
-static VMIOS_CONSTRUCTOR_FN(destructor) {
+static VMIOS_DESTRUCTOR_FN(destructor) {
   vmiMessage("I" ,"VIN_SH", "Shutting down");
   object->streamerState = 2; //set stop condition
   pthread_join(object->streamer, 0);
