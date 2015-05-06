@@ -11,9 +11,9 @@
 #define VIN_VMEM_BUS_NAME               "VINMEMBUS"
 
 //The following values define the layout of the framebuffer memory
-#define VIN_DEFAULT_VMEM_ADDRESS        (VIN_DEFAULT_ADDRESS+VIN_CONTROL_REGS_SIZE)
-#define VIN_VMEM_WIDTH                  640
-#define VIN_VMEM_HEIGHT                 480
+#define VIN_DEFAULT_VMEM_ADDRESS        0x00400000U
+#define VIN_VMEM_WIDTH                  1024
+#define VIN_VMEM_HEIGHT                 768
 #define VIN_VMEM_BYTES_PER_PIXEL        4
 #define VIN_VMEM_BITS_PER_PIXEL         (VIN_VMEM_BYTES_PER_PIXEL*8)
 #define VIN_VMEM_SCANLINE_PIXELS        VIN_VMEM_WIDTH
