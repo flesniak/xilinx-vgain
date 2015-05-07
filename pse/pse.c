@@ -66,7 +66,6 @@ PPM_CONSTRUCTOR_CB(constructor) {
 
   bigEndianGuest = bhmBoolAttribute("bigEndianGuest");
   bool scale = bhmBoolAttribute("scale");
-  bool byteswap = bhmBoolAttribute("byteswap");
 
   char device[16] = {};
   if( !bhmStringAttribute("device", device, 16) )
@@ -78,7 +77,7 @@ PPM_CONSTRUCTOR_CB(constructor) {
     bhmMessage("I", "VIN_PSE", "Using video device %s", device);
 
   bhmMessage("I", "VIN_PSE", "Initializing display initDisplay()");
-  Uns32 error = initDevice((Uns32)device, scale, byteswap);
+  Uns32 error = initDevice((Uns32)device, scale, bigEndianGuest); //do byte swapping when guest is big endian
 
   if( !error )
     bhmMessage("I", "VIN_PSE", "Video input device initialized successfully");

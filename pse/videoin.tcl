@@ -19,4 +19,3 @@ iadddocumentation   -name Description -text "V4L2 to OVP video input peripheral"
   imodeladdformal -name "bigEndianGuest" -type bool
   imodeladdformal -name "scale" -type bool
   imodeladdformal -name "device" -type string
-  imodeladdformal -name "byteswap" -type bool

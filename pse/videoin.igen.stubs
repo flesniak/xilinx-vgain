@@ -1,0 +1,32 @@
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//                W R I T T E N   B Y   I M P E R A S   I G E N
+//
+//                             Version 20150205.0
+//                          Thu May  7 10:28:35 2015
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#include "videoin.igen.h"
+//////////////////////////////// Callback stubs ////////////////////////////////
+
+PPM_REG_READ_CB(readReg) {
+    // YOUR CODE HERE (readReg)
+    return 0;
+}
+
+PPM_REG_WRITE_CB(writeReg) {
+    // YOUR CODE HERE (writeReg)
+}
+
+PPM_CONSTRUCTOR_CB(constructor) {
+    // YOUR CODE HERE (pre constructor)
+    periphConstructor();
+    // YOUR CODE HERE (post constructor)
+}
+
+PPM_DESTRUCTOR_CB(destructor) {
+    // YOUR CODE HERE (destructor)
+}
+
