@@ -3,8 +3,8 @@
 //
 //                W R I T T E N   B Y   I M P E R A S   I G E N
 //
-//                             Version 20131018.0
-//                          Sun Dec 14 16:53:54 2014
+//                             Version 20150205.0
+//                          Thu May  7 10:28:35 2015
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +40,7 @@ static ppmBusPort busPorts[] = {
 
 static PPM_BUS_PORT_FN(nextBusPort) {
     if(!busPort) {
-        return busPorts;
+        busPort = busPorts;
     } else {
         busPort++;
     }
@@ -59,7 +59,7 @@ static ppmNetPort netPorts[] = {
 
 static PPM_NET_PORT_FN(nextNetPort) {
     if(!netPort) {
-        return netPorts;
+         netPort = netPorts;
     } else {
         netPort++;
     }
@@ -82,17 +82,12 @@ static ppmParameter parameters[] = {
         .type        = ppm_PT_STRING,
         .description = 0,
     },
-    {
-        .name        = "byteswap",
-        .type        = ppm_PT_BOOL,
-        .description = 0,
-    },
     { 0 }
 };
 
 static PPM_PARAMETER_FN(nextParameter) {
     if(!parameter) {
-        return parameters;
+        parameter = parameters;
     } else {
         parameter++;
     }

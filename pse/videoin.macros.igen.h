@@ -3,21 +3,13 @@
 //
 //                W R I T T E N   B Y   I M P E R A S   I G E N
 //
-//                             Version 20131018.0
-//                          Sun Dec 14 16:53:54 2014
+//                             Version 20150205.0
+//                          Thu May  7 10:28:35 2015
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifndef VIDEOIN_MACROS_IGEN_H
 #define VIDEOIN_MACROS_IGEN_H
-/////////////////////////////////// Licensing //////////////////////////////////
-
-// Open Source Apache 2.0
-
-////////////////////////////////// Description /////////////////////////////////
-
-// V4L2 to OVP video input peripheral
-
 // Before including this file in the application, define the indicated macros
 // to fix the base address of each slave port.
 // Set the macro 'CFGBUS' to the base of port 'CFGBUS'
