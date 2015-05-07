@@ -344,19 +344,16 @@ int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h, bo
     int imgWidth = gdImageSX(img);
     int imgHeight = gdImageSY(img);
 
-    if( w && h && (imgWidth != w || imgHeight != h) ) {
-      if( scale ) { //scale image if necessary, padding will be done below
-        gdImagePtr src = img;
-        img = gdImageCreateTrueColor(w, h);
-        gdImageCopyResized(img, src, 0, 0, 0, 0, w, h, imgWidth, imgHeight);
-        gdImageDestroy(src);
-      }
-      decoded->w = w; //decoded image will be wxh (scaled or padded)
-      decoded->h = h;
-    } else {
-      decoded->w = imgWidth; //decoded image is exactly as big as decoded image
-      decoded->h = imgHeight;
+    if( w && h && (imgWidth != w || imgHeight != h) && scale ) { //scale image if necessary, padding will be done below
+      gdImagePtr src = img;
+      img = gdImageCreateTrueColor(w, h);
+      gdImageCopyResized(img, src, 0, 0, 0, 0, w, h, imgWidth, imgHeight);
+      gdImageDestroy(src);
+      imgWidth = w;
+      imgHeight = h;
     }
+    decoded->w = imgWidth;
+    decoded->h = imgHeight;
 
     if( decoded->length < decoded->w*decoded->h*4 ) {
       fprintf(stderr, "Decode buffer is too small to hold the decoded image\n");
