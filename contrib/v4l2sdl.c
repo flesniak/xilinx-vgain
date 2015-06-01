@@ -74,11 +74,11 @@ int main(int argc, char** argv) {
   for( int i = 0; i < v4l->frmSizeCount; i++ )
     printf("frmsize %d: %c%c%c%c type %d %dx%d\n", v4l->frmSizes[i].index, (char)v4l->frmSizes[i].pixel_format, (char)(v4l->frmSizes[i].pixel_format>>8), (char)(v4l->frmSizes[i].pixel_format>>16), (char)(v4l->frmSizes[i].pixel_format>>24), v4l->frmSizes[i].type, v4l->frmSizes[i].discrete.width, v4l->frmSizes[i].discrete.height);
 
-  if( v4lGetFrameintervals(v4l, v4l->preferredPixFmtIndex, v4l->frmSizes[v4l->frmSizeCount-1].discrete.width, v4l->frmSizes[v4l->frmSizeCount-1].discrete.height) )
-    exit(EXIT_FAILURE);
-  printf("frame intervals for format index %d and %dx%d:\n", v4l->preferredPixFmtIndex, v4l->frmSizes[v4l->frmSizeCount-1].discrete.width, v4l->frmSizes[v4l->frmSizeCount-1].discrete.height);
-  for( int i = 0; i < v4l->frmIvalCount; i++ )
-    printf("ival %d: %d/%d (%f fps)\n", v4l->frmIvals[i].index, v4l->frmIvals[i].discrete.numerator, v4l->frmIvals[i].discrete.denominator, (float)v4l->frmIvals[i].discrete.denominator/v4l->frmIvals[i].discrete.numerator);
+  if( !v4lGetFrameintervals(v4l, v4l->preferredPixFmtIndex, v4l->frmSizes[v4l->frmSizeCount-1].discrete.width, v4l->frmSizes[v4l->frmSizeCount-1].discrete.height) ) {
+    printf("frame intervals for format index %d and %dx%d:\n", v4l->preferredPixFmtIndex, v4l->frmSizes[v4l->frmSizeCount-1].discrete.width, v4l->frmSizes[v4l->frmSizeCount-1].discrete.height);
+    for( int i = 0; i < v4l->frmIvalCount; i++ )
+      printf("ival %d: %d/%d (%f fps)\n", v4l->frmIvals[i].index, v4l->frmIvals[i].discrete.numerator, v4l->frmIvals[i].discrete.denominator, (float)v4l->frmIvals[i].discrete.denominator/v4l->frmIvals[i].discrete.numerator);
+  }
 
   if( v4lSetFormat(v4l, v4l->preferredPixFmtIndex, targetWidth, targetHeight) )
     exit(EXIT_FAILURE);
@@ -141,10 +141,10 @@ int main(int argc, char** argv) {
     }
 
     if( scale ) {
-      if( v4lDecodeImage(v4l, &surfaceBuffer, buf, rect.w, rect.h) )
+      if( v4lDecodeImage(v4l, &surfaceBuffer, buf, rect.w, rect.h, true) )
         continue;
     } else {
-      if( v4lDecodeImage(v4l, &surfaceBuffer, buf, 0, 0) )
+      if( v4lDecodeImage(v4l, &surfaceBuffer, buf, buf->w, buf->h, false) )
         continue;
     }
 

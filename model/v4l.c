@@ -329,8 +329,8 @@ int v4lDecodeImage(v4lT* s, v4lBufT* decoded, v4lBufT* encoded, int w, int h, bo
     //v4lDecodeYUYV uses w/h of encoded/decoded to calculate padding (if necessary)
     encoded->w = s->fmt.fmt.pix.width;
     encoded->h = s->fmt.fmt.pix.height;
-    decoded->w = w;
-    decoded->h = h;
+    decoded->w = w ? w : encoded->w;
+    decoded->h = h ? h : encoded->h;
     return v4lDecodeYUYV(decoded, encoded);
   }
 
@@ -432,8 +432,8 @@ int v4lDecodeYUYV(v4lBufT* rgb, v4lBufT* yuf) {
   unsigned char* src;
   unsigned char* dst;
   for( int y = 0; y < yuf->h; y++ ) {
-    src = yuf->data + y*yuf->w;
-    dst = rgb->data + y*rgb->w; //offset calculation using width implements padding
+    src = yuf->data + 2*y*yuf->w;
+    dst = rgb->data + 4*y*rgb->w; //offset calculation using width implements padding
     for( int nibble = 0; nibble < yuf->w/2; nibble++ ) { // one yuyv nibble is 2 pixels
       unsigned char* y1 = src+4*nibble+0;
       unsigned char* u  = src+4*nibble+1;
@@ -453,26 +453,6 @@ int v4lDecodeYUYV(v4lBufT* rgb, v4lBufT* yuf) {
       *b2 = CLAMP((float)*y2 + 2.028   * ((float)*u-128));
     }
   }
-/*  //old implementation without using width/height (does not pad)
-  int dataMax = MIN(yuf->length, rgb->length/2);
-  for( int i = 0; i < dataMax; i+=4 ) {
-    unsigned char* y1 = src+i+0;
-    unsigned char* u  = src+i+1;
-    unsigned char* y2 = src+i+2;
-    unsigned char* v  = src+i+3;
-    unsigned char* r1 = dst+2*i+2;
-    unsigned char* g1 = dst+2*i+1;
-    unsigned char* b1 = dst+2*i+0;
-    unsigned char* r2 = dst+2*i+6;
-    unsigned char* g2 = dst+2*i+5;
-    unsigned char* b2 = dst+2*i+4;
-    *r1 = CLAMP((float)*y1 + 1.14    * ((float)*v-128));
-    *g1 = CLAMP((float)*y1 - 0.39393 * ((float)*u-128) - 0.58081 * ((float)*v-128));
-    *b1 = CLAMP((float)*y1 + 2.028   * ((float)*u-128));
-    *r2 = CLAMP((float)*y2 + 1.14    * ((float)*v-128));
-    *g2 = CLAMP((float)*y2 - 0.39393 * ((float)*u-128) - 0.58081 * ((float)*v-128));
-    *b2 = CLAMP((float)*y2 + 2.028   * ((float)*u-128));
-  }*/
   return 0;
 }
 
